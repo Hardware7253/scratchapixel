@@ -1,24 +1,27 @@
 //This file contains definitions and implementations for a vector and a matrix type
+use std::ops::{Add, Sub, Mul};
+
+pub trait Num: Copy + Mul<Output = Self> + Add<Output = Self> + Sub<Output = Self> {}
+impl Num for f32 {}
+impl Num for u32 {}
 
 #[derive(Debug, PartialEq)]
-pub struct Vec3 {
-   pub x: f32,
-   pub y: f32,
-   pub z: f32, 
+pub struct Vec3<T: Num> {
+   pub x: T,
+   pub y: T,
+   pub z: T, 
 }
 
-impl Vec3 {
-    // Vector constructor
-    pub fn new(x: f32, y: f32, z: f32) -> Self {
+impl<T: Num> Vec3<T> {
+    pub fn new(x: T, y: T, z: T) -> Self {
         Vec3 {
-            x,
-            y,
-            z,
+            x: x,
+            y: y,
+            z: z,
         }
     }
-
-    // Construct a vector with all it's fields having the same value 
-    pub fn splat(d: f32) -> Self {
+    
+    pub fn splat(d: T) -> Self {
         Vec3 {
             x: d.clone(),
             y: d.clone(),
@@ -26,13 +29,11 @@ impl Vec3 {
         }
     }
 
-    // Return dot product of two vectors
-    pub fn dot(&self, v: &Vec3) -> f32 {
+    pub fn dot(&self, v: &Vec3<T>) -> T {
         self.x * v.x + self.y * v.y + self.z * v.z
     }
 
-    // Return cross product of two vectors
-    pub fn cross(&self, v: &Vec3) -> Vec3 {
+    pub fn cross(&self, v: &Vec3<T>) -> Vec3<T> {
        Vec3::new(
             self.y * v.z - self.z * v.y,
             self.z * v.x - self.x * v.z,
@@ -40,43 +41,41 @@ impl Vec3 {
        ) 
     }
 
-    // Return the length of the vector
-    pub fn len(&self) -> f32 {
-       f32::sqrt(self.x * self.x + self.y * self.y + self.z * self.z)
+    pub fn len(&self) -> T where T: From<f32> + Into<f32> {
+       f32::sqrt((self.x * self.x + self.y * self.y + self.z * self.z).into()).into()
     }
 
-    // Normalise length of vector so it's one unit long
-    pub fn normalise(&mut self) {
-        let normalisation_constant = 1.0 / self.len();
+    pub fn normalise(&mut self) where T: From<f32> + Into<f32> {
+        let normalisation_constant: T = (1.0 / self.len().into()).into();
         
         self.x = self.x * normalisation_constant;
         self.y = self.y * normalisation_constant;
         self.z = self.z * normalisation_constant;
     }
-    
+
     // Multiply matrices [1x3] x [3x3] = [1x3]
     // The Matrix44 is treated as a 3x3 matrix to perform this multiplication
-    pub fn mult_matrix(&self, matrix: &Matrix44) -> Vec3 {
+    pub fn mult_matrix(&self, matrix: &Matrix44) -> Vec3<T> where T: From<f32> + Into<f32> {
         let mut vec_array: [f32; 3] = [0.0; 3];
         for i in 0..3 {
-            vec_array[i] = self.x * matrix.0[0][i] +
-                           self.y * matrix.0[1][i] +
-                           self.z * matrix.0[2][i];
+            vec_array[i] = self.x.into() * matrix.0[0][i] +
+                           self.y.into() * matrix.0[1][i] +
+                           self.z.into() * matrix.0[2][i];
         }
 
-        Vec3::new(vec_array[0], vec_array[1], vec_array[2])
+        Vec3::new(vec_array[0].into(), vec_array[1].into(), vec_array[2].into())
     }
 
     // Multiply matrices [1x4] x [4x4] = [1x4]
     // The homogenous coordinate of the input vector is implied to be one
     // The homogeneous output coordinates are normalised so a Vec3 can be returned
-    pub fn homogeneous_mult_matrix(&self, matrix: &Matrix44) -> Vec3 {
+    pub fn homogeneous_mult_matrix(&self, matrix: &Matrix44) -> Vec3<T> where T: From<f32> + Into<f32> {
         let mut vec_array: [f32; 4] = [0.0; 4];
         for i in 0..4 {
-            vec_array[i] = self.x * matrix.0[0][i] +
-                           self.y * matrix.0[1][i] +
-                           self.z * matrix.0[2][i] +
-                          /* 1 * */ matrix.0[3][i];
+            vec_array[i] = self.x.into() * matrix.0[0][i] +
+                           self.y.into() * matrix.0[1][i] +
+                           self.z.into() * matrix.0[2][i] +
+                                 /* 1 * */ matrix.0[3][i];
         }
 
         // Convert homogeneous coordinates back to cartesian
@@ -84,7 +83,7 @@ impl Vec3 {
         vec_array[1] /= vec_array[3];
         vec_array[2] /= vec_array[3];
 
-        Vec3::new(vec_array[0], vec_array[1], vec_array[2])
+        Vec3::new(vec_array[0].into(), vec_array[1].into(), vec_array[2].into())
     }
 }
 
@@ -243,55 +242,5 @@ mod matrix44_tests {
     }
 }
 
-// Keeping generic implementation for this commented in the file cause it took me some work
-// It's not really useful though
-// use std::ops::{Add, Sub, Mul};
-// trait Num: Copy + Mul<Output = Self> + Add<Output = Self> + Sub<Output = Self> + Into + std::convert::From {}
 
-// pub struct Vec3<f32: Num> {
-//    pub x: f32,
-//    pub y: f32,
-//    pub z: f32, 
-// }
 
-// impl<f32: Num> Vec3 {
-//     pub fn new(x: f32, y: f32, z: f32) -> Self {
-//         Vec3 {
-//             x: x,
-//             y: y,
-//             z: z,
-//         }
-//     }
-    
-//     pub fn splat(d: f32) -> Self {
-//         Vec3 {
-//             x: d.clone(),
-//             y: d.clone(),
-//             z: d.clone(),
-//         }
-//     }
-
-//     pub fn dot(&self, v: &Vec3) -> f32 {
-//         self.x * v.x + self.y * v.y + self.z * v.z
-//     }
-
-//     pub fn cross(&self, v: &Vec3) -> Vec3 {
-//        Vec3::new(
-//             self.y * v.z - self.z * v.y,
-//             self.z * v.x - self.x * v.z,
-//             self.x * v.y - self.y * v.x,
-//        ) 
-//     }
-
-//     pub fn len(&self) -> f32 {
-//        f32::sqrt((self.x * self.x + self.y * self.y + self.z * self.z).into()) 
-//     }
-
-//     pub fn normalise(&mut self) {
-//         let normalisation_constant: f32 = (1.0 / self.len()).into();
-        
-//         self.x = self.x * normalisation_constant;
-//         self.y = self.y * normalisation_constant;
-//         self.z = self.z * normalisation_constant;
-//     }
-// }
