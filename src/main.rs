@@ -29,8 +29,17 @@ fn main() {
         Vec3::new(1.0, -1.0, z_offset - depth),
     ];
 
-    while true {
-        
+    let connected_vertices = vec![(0, 1), (1, 3), (2, 3), (0, 2), (4, 5), (5, 7), (6, 7), (4, 6), (0, 4), (1, 5), (2, 6), (3, 7)];
+
+    let camera_transformation_matrix =  Matrix44::new([
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, -10.0, 1.0],
+    ]);
+    let camera = camera::Camera::new(camera_transformation_matrix, Vec2::new(100, 100), 15.0, Vec2::new(36.0, 24.0), 0.1, 100.0, camera::FitResolutionGate::Fill);
+
+    loop {
 
         // Rotate cube about the z axis
         let cube_transformation =  Matrix44::new([
@@ -40,15 +49,6 @@ fn main() {
             [0.0, 0.0, 0.0, 1.0],
         ]);
 
-        let connected_vertices = vec![(0, 1), (1, 3), (2, 3), (0, 2), (4, 5), (5, 7), (6, 7), (4, 6), (0, 4), (1, 5), (2, 6), (3, 7)];
-
-        let mut camera = camera::Camera::new();
-        camera.transformation_matrix =  Matrix44::new([
-            [1.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [0.0, 0.0, -10.0, 1.0],
-        ]);
 
         let mut raster_points = Vec::new();
         for point in &cube_points {
@@ -58,8 +58,8 @@ fn main() {
         }
 
         let mut data = Data::new();
-        for (v1, v2) in connected_vertices {
-            let (p1, p2) = (&raster_points[v1], &raster_points[v2]);
+        for (v1, v2) in &connected_vertices {
+            let (p1, p2) = (&raster_points[*v1], &raster_points[*v2]);
             data = data.move_to((p1.x, p1.y))
                     .line_to((p2.x, p2.y));
         }
@@ -71,13 +71,11 @@ fn main() {
             .set("d", data);
 
         let document = Document::new()
-            .set("viewBox", (0, 0, camera.screen_size.x, camera.screen_size.y))
+            .set("viewBox", (0, 0, camera.image_size.x, camera.image_size.y))
             .add(path);
 
         svg::save("image.svg", &document).unwrap();
         thread::sleep(delay_time);
         angle += 0.1;
-        break;
-
     }
 }

@@ -6,6 +6,28 @@ impl Num for f32 {}
 impl Num for u32 {}
 
 #[derive(Debug, PartialEq)]
+pub struct Vec2<T: Num> {
+   pub x: T,
+   pub y: T,
+}
+
+impl<T: Num> Vec2<T> {
+    pub fn new(x: T, y: T) -> Self {
+        Vec2 {
+            x: x,
+            y: y,
+        }
+    }
+    
+    pub fn splat(d: T) -> Self {
+        Vec2 {
+            x: d.clone(),
+            y: d.clone(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub struct Vec3<T: Num> {
    pub x: T,
    pub y: T,
