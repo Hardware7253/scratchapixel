@@ -1,3 +1,3 @@
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-<path d="M21,37 L31,34 M31,34 L31,65 M21,62 L31,65 M21,37 L21,62 M62,39 L77,37 M77,37 L77,62 M62,60 L77,62 M62,39 L62,60 M21,37 L62,39 M31,34 L77,37 M21,62 L62,60 M31,65 L77,62" fill="none" stroke="black" stroke-width="0.1"/>
+<path d="M37,39 L22,37 M22,37 L22,62 M37,60 L22,62 M37,39 L37,60 M78,37 L68,34 M68,34 L68,65 M78,62 L68,65 M78,37 L78,62 M37,39 L78,37 M22,37 L68,34 M37,60 L78,62 M22,62 L68,65" fill="none" stroke="black" stroke-width="0.1"/>
 </svg>
