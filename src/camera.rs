@@ -6,7 +6,7 @@ use crate::linear_algebra::*;
 pub struct Camera {
     pub transformation_matrix: Matrix44, // World to camera matrix
 
-    pub image_size: Vec2<u32>,  // Image size in pixels 
+    pub image_size: Vec2<i32>,  // Image size in pixels 
 
     // Distance between eye and image plane in a pinhole camera (used to calculate angle of view)
     // Not the same as the distance to the virtual cameras canvas 
@@ -37,14 +37,17 @@ pub enum FitResolutionGate {
     Overscan, // Fit film gate within resolution gate (grow film to match canvas)
 }
 
+pub enum ProjectionError {
+    PointCLipped,
+    PointOutsideCanvas,
+}
 
 impl Camera {
 
     // Makes a new camera centered at the world origin
     // Canvas is assumed to be one unit away from the camera
-    pub fn new(
-        transformation_matrix: Matrix44, 
-        image_size: Vec2<u32>, 
+    pub fn new( transformation_matrix: Matrix44, 
+        image_size: Vec2<i32>, 
         focal_length: f32, 
         camera_aperture: Vec2<f32>, 
         z_near: f32, 
@@ -103,30 +106,48 @@ impl Camera {
         }
     }
 
-    // Converts a point from world space to raster space
-    // Returns a None value if the converted point lies outside the cameras view
-    pub fn point_to_raster(&self, world_point: &Vec3<f32>) -> (Vec3<u32>, bool) {
+    // Converts a point from world space to screen space
+    pub fn point_to_screen(&self, world_point: &Vec3<f32>) -> Result<Vec3<f32>, ProjectionError> {
 
         // Convert point from world to camera coordinates
         let camera_point = world_point.homogeneous_mult_matrix(&self.transformation_matrix);
 
+        if camera_point.z < self.z_near || camera_point.z > self.z_far {
+            return Err(ProjectionError::PointCLipped);
+        }
+
         // Project point onto canvas using z divide
+        // Place canvas at z_near
         let proj_x = camera_point.x / -camera_point.z * self.z_near; // Negative sign accounts for camera looking in the negative z direction
         let proj_y = camera_point.y / camera_point.z * self.z_near;
 
-        // Convert canvas coordinates to normalised device coordinates
-        let ndc_x = proj_x / self.canvas_size.x + 0.5;
-        let ndc_y = proj_y / self.canvas_size.y + 0.5;
+        Ok(Vec3::new(proj_x, proj_y, camera_point.z))
+    }
 
-        let outside_canvas = ndc_x > 1.0 || ndc_x < 0.0 || ndc_y > 1.0 || ndc_y < 0.0;
+    // Converts a point from screen space to raster space
+    pub fn screen_to_raster(&self, screen_point: &Vec3<f32>) -> Result<Vec2<i32>, ProjectionError> {
+
+        // Convert canvas coordinates to normalised device coordinates
+        let ndc_x = screen_point.x / self.canvas_size.x + 0.5;
+        let ndc_y = screen_point.y / self.canvas_size.y + 0.5;
+
+        // Check point is inside the canvas
+        if ndc_x > 1.0 || ndc_x < 0.0 || ndc_y > 1.0 || ndc_y < 0.0 {
+            return Err(ProjectionError::PointOutsideCanvas);
+        }
 
         // Convert NDC to raster coordinates
-        let raster_coordinates: Vec3<u32> = Vec3::new(
-            (ndc_x * self.image_size.x as f32).floor() as u32,
-            (ndc_y * self.image_size.y as f32).floor() as u32,
-            0
+        let raster_coordinates: Vec2<i32> = Vec2::new(
+            (ndc_x * self.image_size.x as f32).floor() as i32,
+            (ndc_y * self.image_size.y as f32).floor() as i32,
         );
 
-        (raster_coordinates, outside_canvas)
+        Ok(raster_coordinates)
+    }
+
+    // Converts a point from world space to raster space
+    pub fn point_to_raster(&self, world_point: &Vec3<f32>) -> Result<Vec2<i32>, ProjectionError> {
+        let screen_point = self.point_to_screen(world_point)?;
+        self.screen_to_raster(&screen_point)
     }
 }

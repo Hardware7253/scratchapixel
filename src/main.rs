@@ -1,85 +1,187 @@
-// A simple implementation of the rasterization rendering algorithm
-// The current implementation does not use the projection matrix or care about the clipping planes
-// There is no z buffer
 // This project uses a right handed coordinate system where z points into the screen
 
-use svg::Document;
-use svg::node::element::Path;
-use svg::node::element::path::Data;
-
-use std::{thread, time};
+pub mod num;
+pub mod colour;
+pub mod frame_buffer;
 
 pub mod linear_algebra;
+pub mod math_helpers;
+
 pub mod camera;
+pub mod rasterisation;
 
+use colour::*;
 use linear_algebra::*;
+use frame_buffer::*;
+use rasterisation::*;
+// use num::Num;
 
-fn main() {
+use minifb::{Key, Window, WindowOptions};
 
-    let delay_time = time::Duration::from_millis(150);
+const WINDING_ORDER: WindingOrder = WindingOrder::CCW;
 
-    let mut angle: f32 = 0.5;
-    let z_offset = 2.0;
-    let depth = 4.0;
+const DRAW_WIDTH: usize = 128;
+const DRAW_HEIGHT: usize = 128;
 
-    let cube_points = vec![
-        Vec3::new(-1.0, 1.0, z_offset),
-        Vec3::new(1.0, 1.0, z_offset),
-        Vec3::new(-1.0, -1.0, z_offset),
-        Vec3::new(1.0, -1.0, z_offset),
-        Vec3::new(-1.0, 1.0, z_offset - depth),
-        Vec3::new(1.0, 1.0, z_offset - depth),
-        Vec3::new(-1.0, -1.0, z_offset - depth),
-        Vec3::new(1.0, -1.0, z_offset - depth),
-    ];
+// Convert pixel coordinates to array index
+fn convert_coordinates(px_x: usize, px_y: usize, width_px: usize, height_px: usize) -> Result<usize, FrameBufError> {
+    if (px_x >= width_px || px_y >= height_px) {
+        return Err(frame_buffer::FrameBufError::PixelOutsideBuf);
+    }
 
-    let connected_vertices = vec![(0, 1), (1, 3), (2, 3), (0, 2), (4, 5), (5, 7), (6, 7), (4, 6), (0, 4), (1, 5), (2, 6), (3, 7)];
+    let write_y = height_px - px_y - 1;
+    let index = px_x + (write_y * width_px);
+    Ok(index)
+}
 
-    let camera_transformation_matrix =  Matrix44::new([
-        [1.0, 0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 0.0],
-        [0.0, 0.0, -10.0, 1.0],
-    ]);
-    let camera = camera::Camera::new(camera_transformation_matrix, Vec2::new(100, 100), 15.0, Vec2::new(36.0, 24.0), 0.1, 100.0, camera::FitResolutionGate::Fill);
+impl<const L: usize> FrameBufferTrait for [u32; L] {
 
-    loop {
+    fn write_buf(&mut self, px_x: usize, px_y: usize, colour: &Colour8, width_px: usize, height_px: usize) -> Result<(), FrameBufError> {
+        let index = convert_coordinates(px_x, px_y, width_px, height_px)?;
+        let bytes: [u8; 4] = [colour.alpha, colour.red, colour.green, colour.blue]; // minifb doesn't use the alpha channel
+        self[index] = u32::from_be_bytes(bytes);
 
-        // Rotate cube about the z axis
-        let cube_transformation =  Matrix44::new([
-            [angle.cos(), 0.0, -angle.sin(), 0.0],
-            [0.0, 1.0, 0.0, 0.0],
-            [angle.sin(), 0.0, angle.cos(), 0.0],
-            [0.0, 0.0, 0.0, 1.0],
-        ]);
+        Ok(())
+    }
 
 
-        let mut raster_points = Vec::new();
-        for point in &cube_points {
-            let point = point.mult_matrix(&cube_transformation);
-            let raster_point = camera.point_to_raster(&point);
-            raster_points.push(raster_point.0);
-        }
+    fn read_buf(&self, px_x: usize, px_y: usize, width_px: usize, height_px: usize) -> Result<Colour8, FrameBufError> {
+        let index = convert_coordinates(px_x, px_y, width_px, height_px)?;
+        let colour = self[index];
+        let colour_bytes: [u8; 4] = u32::to_be_bytes(colour);
 
-        let mut data = Data::new();
-        for (v1, v2) in &connected_vertices {
-            let (p1, p2) = (&raster_points[*v1], &raster_points[*v2]);
-            data = data.move_to((p1.x, p1.y))
-                    .line_to((p2.x, p2.y));
-        }
+        let colour8 = Colour8 {
+            red: colour_bytes[1],
+            green: colour_bytes[2],
+            blue: colour_bytes[3],
+            alpha: colour_bytes[0],
+        };
 
-        let path = Path::new()
-            .set("fill", "none")
-            .set("stroke", "black")
-            .set("stroke-width", 0.1)
-            .set("d", data);
-
-        let document = Document::new()
-            .set("viewBox", (0, 0, camera.image_size.x, camera.image_size.y))
-            .add(path);
-
-        svg::save("image.svg", &document).unwrap();
-        thread::sleep(delay_time);
-        angle += 0.1;
+        Ok(colour8)
     }
 }
+
+fn main() {
+    let mut frame_buffer = FrameBuffer::new(DRAW_WIDTH, DRAW_HEIGHT, [0; DRAW_WIDTH * DRAW_HEIGHT]);
+
+    let v0 = Vertex {
+        vertex: Vec2::new(40, 8),
+        attributes: VertexAttributes {colour: RED},
+    };
+
+    let v1 = Vertex {
+        vertex: Vec2::new(100, 60),
+        attributes: VertexAttributes {colour: GREEN},
+    };
+
+    let v2 = Vertex {
+        vertex: Vec2::new(20, 100),
+        attributes: VertexAttributes {colour: BLUE},
+    };
+
+    let triangle1 = Triangle {
+        v0,
+        v1,
+        v2,
+    };
+
+    let v0 = Vertex {
+        vertex: Vec2::new(40, 8),
+        attributes: VertexAttributes {colour: BLUE},
+    };
+
+    let v2 = Vertex {
+        vertex: Vec2::new(100, 60),
+        attributes: VertexAttributes {colour: RED},
+    };
+
+    let v1 = Vertex {
+        vertex: Vec2::new(120, 5),
+        attributes: VertexAttributes {colour: RED},
+    };
+
+    let triangle2 = Triangle {
+        v0,
+        v1,
+        v2
+    };
+
+    let v0 = Vertex {
+        vertex: Vec2::new(40.0f32, 8.0),
+        attributes: VertexAttributes {colour: RED},
+    };
+
+    let v1 = Vertex {
+        vertex: Vec2::new(100.0f32, 60.0),
+        attributes: VertexAttributes {colour: GREEN},
+    };
+
+    let v2 = Vertex {
+        vertex: Vec2::new(20.0f32, 100.0),
+        attributes: VertexAttributes {colour: BLUE},
+    };
+
+    let mut triangle3 = Triangle {
+        v0,
+        v1,
+        v2,
+    };
+
+    let mut window_options = WindowOptions::default();
+    window_options.scale_mode = minifb::ScaleMode::Stretch;
+    window_options.scale = minifb::Scale::X8;
+
+    let mut window = Window::new(
+        "Test - ESC to exit",
+        DRAW_WIDTH,
+        DRAW_HEIGHT,
+        window_options
+    )
+    .unwrap_or_else(|e| {
+        panic!("{}", e);
+    });
+
+    // Limit to max ~60 fps update rate
+    window.set_target_fps(2);
+
+    let mut count = 0;
+    while window.is_open() && !window.is_key_down(Key::Escape) {
+        frame_buffer.clear_buf();
+
+        rasterise_triangle(&triangle1, &mut frame_buffer, &WINDING_ORDER);
+
+        if count % 2 == 0 {
+            rasterise_triangle(&triangle2, &mut frame_buffer, &WINDING_ORDER);
+        }
+
+        count += 1;
+
+        // We unwrap here as we want this code to exit if it fails. Real applications may want to handle this in a different way
+        window
+            .update_with_buffer(&frame_buffer.buf, DRAW_WIDTH, DRAW_HEIGHT)
+            .unwrap();
+
+    }
+}
+
+
+
+
+// fn main() {
+//     let camera_transformation_matrix =  Matrix44::new([
+//         [1.0, 0.0, 0.0, 0.0],
+//         [0.0, 1.0, 0.0, 0.0],
+//         [0.0, 0.0, 1.0, 0.0],
+//         [0.0, 0.0, -10.0, 1.0],
+//     ]);
+
+//     let camera = camera::Camera::new(camera_transformation_matrix, Vec2::new(100, 100), 15.0, Vec2::new(36.0, 24.0), 0.1, 100.0, camera::FitResolutionGate::Fill);
+
+//     let v0 = Vec2::new(0.0, 0.0);
+//     let v1 = Vec2::new(1.0, 1.0);
+//     let p = Vec2::new(0.0, -2.0);
+
+//     // println!("{}", math_helpers::compute(v0, v1, p));
+
+        
+// }
