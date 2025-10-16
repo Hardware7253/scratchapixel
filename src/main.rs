@@ -1,4 +1,11 @@
+// A simple implementation of the rasterization rendering algorithm
+// The current implementation does not use the projection matrix or care about the clipping planes
+// There is no z buffer
 // This project uses a right handed coordinate system where z points into the screen
+
+use svg::Document;
+use svg::node::element::Path;
+use svg::node::element::path::Data;
 
 pub mod num;
 pub mod colour;
