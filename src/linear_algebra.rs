@@ -1,9 +1,6 @@
-//This file contains definitions and implementations for a vector and a matrix type
-use std::ops::{Add, Sub, Mul};
+//This file contains definitions and implementations for vector and matrix types 
 
-pub trait Num: Copy + Mul<Output = Self> + Add<Output = Self> + Sub<Output = Self> {}
-impl Num for f32 {}
-impl Num for u32 {}
+use crate::num::Num;
 
 #[derive(Debug, PartialEq)]
 pub struct Vec2<T: Num> {
@@ -23,6 +20,13 @@ impl<T: Num> Vec2<T> {
         Vec2 {
             x: d.clone(),
             y: d.clone(),
+        }
+    }
+
+    pub fn from_vec3(vec: &Vec3<T>) -> Self {
+        Vec2 {
+            x: vec.x.clone(),
+            y: vec.y.clone(),
         }
     }
 }
@@ -51,10 +55,20 @@ impl<T: Num> Vec3<T> {
         }
     }
 
+    pub fn from_vec2(vec: &Vec2<T>, z: T) -> Self {
+        Vec3 {
+            x: vec.x.clone(),
+            y: vec.y.clone(),
+            z: z.clone(),
+        }
+    }
+
+    // Does vector dot product with another vector
     pub fn dot(&self, v: &Vec3<T>) -> T {
         self.x * v.x + self.y * v.y + self.z * v.z
     }
 
+    // Does vector cross product with another vector
     pub fn cross(&self, v: &Vec3<T>) -> Vec3<T> {
        Vec3::new(
             self.y * v.z - self.z * v.y,
@@ -63,10 +77,12 @@ impl<T: Num> Vec3<T> {
        ) 
     }
 
+    // Returns vector 2 norm
     pub fn len(&self) -> T where T: From<f32> + Into<f32> {
        f32::sqrt((self.x * self.x + self.y * self.y + self.z * self.z).into()).into()
     }
 
+    // Makes vector length 1
     pub fn normalise(&mut self) where T: From<f32> + Into<f32> {
         let normalisation_constant: T = (1.0 / self.len().into()).into();
         
@@ -97,7 +113,7 @@ impl<T: Num> Vec3<T> {
             vec_array[i] = self.x.into() * matrix.0[0][i] +
                            self.y.into() * matrix.0[1][i] +
                            self.z.into() * matrix.0[2][i] +
-                                 /* 1 * */ matrix.0[3][i];
+                        /* implicit 1 * */ matrix.0[3][i];
         }
 
         // Convert homogeneous coordinates back to cartesian
@@ -115,7 +131,6 @@ const ZERO_MATRIX: MatrixArray = [
     [0.0, 0.0, 0.0, 0.0],
     [0.0, 0.0, 0.0, 0.0],
     [0.0, 0.0, 0.0, 0.0],
-
 ];
 
 #[derive(Debug, PartialEq)]
