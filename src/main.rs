@@ -65,18 +65,18 @@ fn main() {
     let mut frame_buffer = FrameBuffer::new(DRAW_WIDTH, DRAW_HEIGHT, [0; DRAW_WIDTH * DRAW_HEIGHT]);
 
     let v0 = Vertex {
-        vertex: Vec2::new(40, 8),
-        attributes: VertexAttributes {colour: RED},
+        vertex: Vec3::new(40.0, 8.0, 0.0),  // already Vec3
+        attributes: VertexAttributes { colour: RED },
     };
 
     let v1 = Vertex {
-        vertex: Vec2::new(100, 60),
-        attributes: VertexAttributes {colour: GREEN},
+        vertex: Vec3::new(100.0, 60.0, 0.0),  // already Vec3
+        attributes: VertexAttributes { colour: GREEN },
     };
 
     let v2 = Vertex {
-        vertex: Vec2::new(20, 100),
-        attributes: VertexAttributes {colour: BLUE},
+        vertex: Vec3::new(20.0, 100.0, 0.0),  // Convert Vec2 to Vec3
+        attributes: VertexAttributes { colour: BLUE },
     };
 
     let triangle1 = Triangle {
@@ -86,38 +86,39 @@ fn main() {
     };
 
     let v0 = Vertex {
-        vertex: Vec2::new(40, 8),
-        attributes: VertexAttributes {colour: BLUE},
+        vertex: Vec3::new(40.0, 8.0, 0.0),  // Convert Vec2 to Vec3
+        attributes: VertexAttributes { colour: BLUE },
     };
 
     let v2 = Vertex {
-        vertex: Vec2::new(100, 60),
-        attributes: VertexAttributes {colour: RED},
+        vertex: Vec3::new(100.0, 60.0, 0.0),  // Convert Vec2 to Vec3
+        attributes: VertexAttributes { colour: RED },
     };
 
     let v1 = Vertex {
-        vertex: Vec2::new(120, 5),
-        attributes: VertexAttributes {colour: RED},
+        vertex: Vec3::new(120.0, 5.0, 0.0),  // Convert Vec2 to Vec3
+        attributes: VertexAttributes { colour: RED },
     };
 
     let triangle2 = Triangle {
         v0,
         v1,
-        v2
+        v2,
     };
 
+
     let v0 = Vertex {
-        vertex: Vec2::new(40.0f32, 8.0),
+        vertex: Vec3::new(-40.0f32, -40.0, 0.0),
         attributes: VertexAttributes {colour: RED},
     };
 
     let v1 = Vertex {
-        vertex: Vec2::new(100.0f32, 60.0),
+        vertex: Vec3::new(60.0f32, 5.0, 0.0),
         attributes: VertexAttributes {colour: GREEN},
     };
 
     let v2 = Vertex {
-        vertex: Vec2::new(20.0f32, 100.0),
+        vertex: Vec3::new(-5.0f32, 50.0, 0.0),
         attributes: VertexAttributes {colour: BLUE},
     };
 
@@ -141,18 +142,38 @@ fn main() {
         panic!("{}", e);
     });
 
-    // Limit to max ~60 fps update rate
-    window.set_target_fps(2);
+    window.set_target_fps(24);
+
+    let angle: f32 = 0.03;
+
+    // Rotate about the z axis
+    let transformation_matrix =  Matrix44::new([
+        [angle.cos(), -angle.sin(), 0.0, 0.0],
+        [angle.sin(), angle.cos(), 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]);
+
+    let centre = Vec3::new(60.0, 60.0, 0.0);
+    let translation_matrix=  Matrix44::new([
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [centre.x, centre.y, centre.z, 1.0],
+    ]);
 
     let mut count = 0;
     while window.is_open() && !window.is_key_down(Key::Escape) {
         frame_buffer.clear_buf();
 
-        rasterise_triangle(&triangle1, &mut frame_buffer, &WINDING_ORDER);
+        triangle3.transform_this_triangle(&transformation_matrix);
+        rasterise_triangle(&triangle3.transform_triangle(&translation_matrix), &mut frame_buffer, &WINDING_ORDER);
 
-        if count % 2 == 0 {
-            rasterise_triangle(&triangle2, &mut frame_buffer, &WINDING_ORDER);
-        }
+        // Top left check
+        // rasterise_triangle(&triangle1, &mut frame_buffer, &WINDING_ORDER);
+        // if count % 2 == 0 {
+        //     rasterise_triangle(&triangle2, &mut frame_buffer, &WINDING_ORDER);
+        // }
 
         count += 1;
 

@@ -1,3 +1,4 @@
+#[derive(Clone, Copy)]
 pub struct Colour8 {
     pub red: u8,
     pub green: u8,
@@ -21,10 +22,10 @@ impl std::ops::Add for Colour8 {
 
     fn add(self, rhs: Self) -> Self::Output {
         Colour8 {
-            red: self.red + rhs.red,
-            green: self.green + rhs.green,
-            blue: self.blue + rhs.blue,
-            alpha: self.alpha + rhs.alpha,
+            red: self.red.saturating_add(rhs.red),
+            green: self.green.saturating_add(rhs.green),
+            blue: self.blue.saturating_add(rhs.blue),
+            alpha: self.alpha.saturating_add(rhs.alpha),
         }
     }
 }
