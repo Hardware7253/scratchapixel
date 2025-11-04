@@ -2,7 +2,7 @@
 
 use crate::num::Num;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Vec2<T: Num> {
    pub x: T,
    pub y: T,
@@ -31,7 +31,7 @@ impl<T: Num> Vec2<T> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Vec3<T: Num> {
    pub x: T,
    pub y: T,

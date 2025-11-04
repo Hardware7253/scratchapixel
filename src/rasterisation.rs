@@ -1,5 +1,5 @@
 use crate::num::Num;
-use crate::colour::Colour8;
+use crate::colour::Colour;
 use crate::linear_algebra::*;
 use crate::frame_buffer::{FrameBuffer, FrameBufferTrait};
 
@@ -10,9 +10,18 @@ pub enum WindingOrder {
 
 #[derive(Clone, Copy)]
 pub struct VertexAttributes {
-    pub colour: Colour8,
+    pub colour: Colour,
 }
 
+impl VertexAttributes {
+    fn new() -> Self {
+        VertexAttributes { 
+            colour: Colour::new(),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
 pub struct Vertex<T: Num> {
     pub vertex: Vec3<T>,
     pub attributes: VertexAttributes,
@@ -24,6 +33,7 @@ impl<T: Num> Vertex<T> {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Triangle<T: Num> {
     pub v0: Vertex<T>,
     pub v1: Vertex<T>,
@@ -98,6 +108,22 @@ impl Triangle<f32> {
             y: Range::find_min_max(vertices_y, f32::NEG_INFINITY, f32::INFINITY),
         }
     }
+
+    // Divide vertex attributes by their z coordiante for perspective correct interpolation
+    fn divide_attributes(&self) -> [VertexAttributes; 3] {
+        let mut new_attributes = [VertexAttributes::new(), VertexAttributes::new(), VertexAttributes::new()];
+
+        for (i, vertex) in [&self.v0, &self.v1, &self.v2].iter().enumerate() {
+            let zdiv = 1.0 / vertex.vertex.z;
+            let colour = &vertex.attributes.colour;
+
+            new_attributes[i].colour = colour.multiply_float(zdiv);
+
+        }
+
+        new_attributes
+    }
+
 }
 
 // Return true if this edge is a top or left edge
@@ -124,48 +150,6 @@ fn edge_fn<T: Num>(v0: &Vec3<T>, v1: &Vec3<T>, p: &Vec3<T>, winding: &WindingOrd
     }
 }
 
-// Tests if a point is contained in a traingle
-// Returns true if that point is in the triangle
-// Also returns barycentric coefficients 
-fn test_point(triangle: &Triangle<f32>, double_triangle_area: f32, point: Vec3<f32>, winding: &WindingOrder) -> (bool, f32, f32, f32) {
-    let w0 = edge_fn(&triangle.v0.vertex, &triangle.v1.vertex, &point, winding);
-    let w1 = edge_fn(&triangle.v1.vertex, &triangle.v2.vertex, &point, winding);
-    let w2 = edge_fn(&triangle.v2.vertex, &triangle.v0.vertex, &point, winding);
-
-    let mut edge = false;
-    let mut top_left = true;
-
-    if w0 == 0.0 {
-        top_left &= is_top_left(&triangle.v0.vertex, &triangle.v1.vertex, winding);
-        edge = true;
-    }
-
-    if w1 == 0.0 {
-        top_left &= is_top_left(&triangle.v1.vertex, &triangle.v2.vertex, winding);
-        edge = true;
-    }
-
-    if w2 == 0.0 {
-        top_left &= is_top_left(&triangle.v2.vertex, &triangle.v0.vertex, winding);
-        edge = true;
-    }
-
-    let mut point_overlap = true;
-    point_overlap &= w0 >= 0.0;
-    point_overlap &= w1 >= 0.0;
-    point_overlap &= w2 >= 0.0;
-
-    if edge {
-        point_overlap &= top_left;
-    }
-
-    let l0 = w1 as f32 / double_triangle_area as f32;
-    let l1 = w2 as f32 / double_triangle_area as f32;
-    let l2 = w0 as f32 / double_triangle_area as f32;
-
-    (point_overlap, l0, l1, l2)
-}
-
 // Draws a traingle to the frame buffer
 pub fn rasterise_triangle<T: FrameBufferTrait>(triangle: &Triangle<f32>, frame_buffer: &mut FrameBuffer<T>, winding: &WindingOrder) {
 
@@ -176,8 +160,8 @@ pub fn rasterise_triangle<T: FrameBufferTrait>(triangle: &Triangle<f32>, frame_b
     let bias1 = if is_top_left(&triangle.v1.vertex, &triangle.v2.vertex, winding) {0.0} else {-1.0};
     let bias2 = if is_top_left(&triangle.v2.vertex, &triangle.v0.vertex, winding) {0.0} else {-1.0};
 
-    // Calculate delta w's
-    // This works because each w changes by the same amount across a row or a column
+    // Calculate delta w's 
+    // This works because each edge function changes by the same amount across a row or a column
     // https://youtu.be/k5wtuKWmV48?si=qOR57hqKZoHXAVYW&t=6290
     let delta_w0_x = triangle.v0.vertex.y - triangle.v1.vertex.y;
     let delta_w1_x = triangle.v1.vertex.y - triangle.v2.vertex.y;
@@ -195,10 +179,18 @@ pub fn rasterise_triangle<T: FrameBufferTrait>(triangle: &Triangle<f32>, frame_b
 
     // Add 0.5 to check pixel center
     let start_point = Vec3::new(bounding_box.x.min.floor() + 0.5, bounding_box.y.min.floor() + 0.5, 0.0);
+
+    // Calculate starting edge functions do apply deltas to as we move through the bounding box
     let mut col_w0 = edge_fn(&triangle.v0.vertex, &triangle.v1.vertex, &start_point, winding) + bias0;
     let mut col_w1 = edge_fn(&triangle.v1.vertex, &triangle.v2.vertex, &start_point, winding) + bias1;
     let mut col_w2 = edge_fn(&triangle.v2.vertex, &triangle.v0.vertex, &start_point, winding) + bias2;
     let double_triangle_area = col_w0 + col_w1 + col_w2; 
+
+    // Precompute 1/z's for perspective correct barycentric interpolation 
+    let div_zs: [f32; 3] = [1.0 / triangle.v0.vertex.z, 1.0 / triangle.v1.vertex.z, 1.0 / triangle.v2.vertex.z];
+
+    // Divide 
+    let divided_attributes = triangle.divide_attributes();
 
     for x in px_bounding_box.x.min..px_bounding_box.x.max {
 
@@ -220,15 +212,20 @@ pub fn rasterise_triangle<T: FrameBufferTrait>(triangle: &Triangle<f32>, frame_b
                 continue;
             }
 
+            // Barycentric coordinates
             let l0 = w1 / double_triangle_area;
             let l1 = w2 / double_triangle_area;
             let l2 = w0 / double_triangle_area;
 
-            // Interpolate pixel colour using barycentric coorindates
-            let pixel_colour = triangle.v0.attributes.colour.multiply_float(l0) +
-                               triangle.v1.attributes.colour.multiply_float(l1) +
-                               triangle.v2.attributes.colour.multiply_float(l2);
-            // let pixel_colour = triangle.v0.attributes.colour;
+            // Get perspective correct interpolated z
+            let interpolated_z = 1.0 / (div_zs[0] * l0 + div_zs[1] * l1 + div_zs[2] * l2);
+
+            // Interpolate pixel colour using barycentric coorindates (perspective correct)
+            let pixel_colour = (
+                divided_attributes[0].colour.multiply_float(l0) +
+                divided_attributes[1].colour.multiply_float(l1) +
+                divided_attributes[2].colour.multiply_float(l2)
+            ).multiply_float(interpolated_z);
 
             let _ = frame_buffer.write_buf(x as usize, y as usize, &pixel_colour);
         }
@@ -242,19 +239,6 @@ pub fn rasterise_triangle<T: FrameBufferTrait>(triangle: &Triangle<f32>, frame_b
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // #[test]
-    // fn test_is_top_left() {
-    //     let v0 = Vec2::new(0.0, 0.0);
-    //     let v1 = Vec2::new(1.0, 1.0);
-    //     assert_eq!(is_top_left(&v0, &v1, &WindingOrder::CW), true);
-
-
-    //     let v0 = Vec2::new(1.0, 1.0);
-    //     let v1 = Vec2::new(3.0, -1.0);
-    //     assert_eq!(is_top_left(&v0, &v1, &WindingOrder::CCW), true);
-    //     assert_eq!(is_top_left(&v0, &v1, &WindingOrder::CW), false);
-    // }
 
 }
 

@@ -36,25 +36,25 @@ fn convert_coordinates(px_x: usize, px_y: usize, width_px: usize, height_px: usi
 
 impl<const L: usize> FrameBufferTrait for [u32; L] {
 
-    fn write_buf(&mut self, px_x: usize, px_y: usize, colour: &Colour8, width_px: usize, height_px: usize) -> Result<(), FrameBufError> {
+    fn write_buf(&mut self, px_x: usize, px_y: usize, colour: &Colour, width_px: usize, height_px: usize) -> Result<(), FrameBufError> {
         let index = convert_coordinates(px_x, px_y, width_px, height_px)?;
-        let bytes: [u8; 4] = [colour.alpha, colour.red, colour.green, colour.blue]; // minifb doesn't use the alpha channel
-        self[index] = u32::from_be_bytes(bytes);
+        let colours = colour.to_bytes();
+        self[index] = u32::from_be_bytes([0, colours[0], colours[1], colours[2]]); // minifb doesn't use the alpha channel
 
         Ok(())
     }
 
 
-    fn read_buf(&self, px_x: usize, px_y: usize, width_px: usize, height_px: usize) -> Result<Colour8, FrameBufError> {
+    fn read_buf(&self, px_x: usize, px_y: usize, width_px: usize, height_px: usize) -> Result<Colour, FrameBufError> {
         let index = convert_coordinates(px_x, px_y, width_px, height_px)?;
         let colour = self[index];
         let colour_bytes: [u8; 4] = u32::to_be_bytes(colour);
 
-        let colour8 = Colour8 {
-            red: colour_bytes[1],
-            green: colour_bytes[2],
-            blue: colour_bytes[3],
-            alpha: colour_bytes[0],
+        let colour8 = Colour {
+            red: byte_to_normalised(colour_bytes[1]),
+            green: byte_to_normalised(colour_bytes[2]),
+            blue: byte_to_normalised(colour_bytes[3]),
+            alpha: 1.0,
         };
 
         Ok(colour8)
@@ -64,6 +64,7 @@ impl<const L: usize> FrameBufferTrait for [u32; L] {
 fn main() {
     let mut frame_buffer = FrameBuffer::new(DRAW_WIDTH, DRAW_HEIGHT, [0; DRAW_WIDTH * DRAW_HEIGHT]);
 
+    // Yes ChatGPT made these test triangles
     let v0 = Vertex {
         vertex: Vec3::new(40.0, 8.0, 0.0),  // already Vec3
         attributes: VertexAttributes { colour: RED },
@@ -108,17 +109,17 @@ fn main() {
 
 
     let v0 = Vertex {
-        vertex: Vec3::new(-40.0f32, -40.0, 0.0),
+        vertex: Vec3::new(-40.0f32, -40.0, -10.0),
         attributes: VertexAttributes {colour: RED},
     };
 
     let v1 = Vertex {
-        vertex: Vec3::new(60.0f32, 5.0, 0.0),
+        vertex: Vec3::new(60.0f32, 5.0, -5.0),
         attributes: VertexAttributes {colour: GREEN},
     };
 
     let v2 = Vertex {
-        vertex: Vec3::new(-5.0f32, 50.0, 0.0),
+        vertex: Vec3::new(-5.0f32, 50.0, -10.0),
         attributes: VertexAttributes {colour: BLUE},
     };
 

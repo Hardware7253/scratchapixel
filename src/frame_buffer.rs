@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use crate::colour::{Colour8, BLANK};
+use crate::colour::{Colour, BLANK};
 
 pub struct FrameBuffer<T: FrameBufferTrait> {
     pub width_px: usize,
@@ -16,11 +16,11 @@ impl<T: FrameBufferTrait> FrameBuffer<T> {
         }       
     }
 
-    pub fn write_buf(&mut self, px_x:usize, px_y: usize, colour: &Colour8) -> Result<(), FrameBufError> {
+    pub fn write_buf(&mut self, px_x:usize, px_y: usize, colour: &Colour) -> Result<(), FrameBufError> {
         self.buf.write_buf(px_x, px_y, colour, self.width_px, self.height_px)
     }
 
-    pub fn read_buf(&self, px_x:usize, px_y: usize) -> Result<Colour8, FrameBufError> {
+    pub fn read_buf(&self, px_x:usize, px_y: usize) -> Result<Colour, FrameBufError> {
         self.buf.read_buf(px_x, px_y, self.width_px, self.height_px)
     }
 
@@ -47,7 +47,7 @@ impl<T: FrameBufferTrait> FrameBuffer<T> {
     }
 
     // Writes a square with a solid colour to the frame buffer
-    fn write_square(&mut self, px_x: usize, px_y: usize, colour: Colour8, size: usize) {
+    fn write_square(&mut self, px_x: usize, px_y: usize, colour: Colour, size: usize) {
         for x in px_x..(px_x + size) {
             for y in px_y..(px_y + size) {
                let _ = self.write_buf(x, y, &colour);
@@ -66,8 +66,8 @@ pub trait FrameBufferTrait {
     // The origin of px_x and px_y is in the bottom left of the image
 
     // Write a colour to the buffer
-    fn write_buf(&mut self, px_x: usize, px_y: usize, colour: &Colour8, width_px: usize, height_px: usize) -> Result<(), FrameBufError>;
+    fn write_buf(&mut self, px_x: usize, px_y: usize, colour: &Colour, width_px: usize, height_px: usize) -> Result<(), FrameBufError>;
 
     // Read a colour from the buffer
-    fn read_buf(&self, px_x: usize, px_y: usize, width_px: usize, height_px: usize) -> Result<Colour8, FrameBufError>;
+    fn read_buf(&self, px_x: usize, px_y: usize, width_px: usize, height_px: usize) -> Result<Colour, FrameBufError>;
 }
